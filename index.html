@@ -12,7 +12,7 @@
     #content {
       display: flex; gap: 10px; margin-top: 10px;
     }
-    video, canvas  { width:640px; height:360px; border:1px solid #aaa; transform: scaleX(-1); }
+    video, canvas  { width:360px; height:640px; transform: scaleX(-1); }
     #output { white-space: pre-line; margin: 10px; }
     #warning { font-size: 24px; font-weight: bold; }
   </style>
@@ -142,8 +142,8 @@
 
       new Camera(video, {
         onFrame: async () => await faceMesh.send({ image: video }),
-        width: video.videoWidth,
-        height: video.videoHeight
+        width: 360,
+        height: 640
       }).start();
 
       document.getElementById('startBtn').style.display = 'none';
