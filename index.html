@@ -2,76 +2,75 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Depth Anything Demo</title>
+  <title>Depth Anything Webcam Demo</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    img, canvas { max-width: 100%; height: auto; }
-    #container { display: flex; gap: 20px; }
-    .panel { flex: 1; text-align: center; }
+    video, canvas {
+      width: 320px;
+      height: auto;
+      border: 1px solid #ccc;
+      margin: 10px;
+    }
   </style>
 </head>
 <body>
-  <h1>Depth Anything デモ</h1>
-  <p>画像を選んで深度マップを生成します。</p>
-  <input type="file" id="fileInput" accept="image/*">
-  <div id="container">
-    <div class="panel">
-      <h2>Original Image</h2>
-      <img id="origImg" src="" alt="Original">
-    </div>
-    <div class="panel">
-      <h2>Depth Map</h2>
-      <canvas id="depthCanvas"></canvas>
-    </div>
-  </div>
+  <h1>Depth Anything with Front Camera</h1>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="depthCanvas"></canvas>
+  <button id="captureBtn">キャプチャして深度推定</button>
 
   <script>
-    const fileInput = document.getElementById('fileInput');
-    const origImg = document.getElementById('origImg');
+    const video = document.getElementById('video');
     const depthCanvas = document.getElementById('depthCanvas');
     const ctx = depthCanvas.getContext('2d');
+    const captureBtn = document.getElementById('captureBtn');
 
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
+    // フロントカメラの映像を取得
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error("カメラ取得失敗:", err);
+        alert("カメラを利用できません。設定を確認してください。");
+      });
 
-      const reader = new FileReader();
-      reader.onload = async e => {
-        origImg.src = e.target.result;
-        await origImg.decode();
+    captureBtn.addEventListener('click', async () => {
+      // 映像をcanvasに描画
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      depthCanvas.width = w;
+      depthCanvas.height = h;
+      ctx.drawImage(video, 0, 0, w, h);
 
-        const imgBlob = await fetch(e.target.result).then(r => r.blob());
+      // Blobとして取得
+      depthCanvas.toBlob(async blob => {
         const form = new FormData();
-        form.append('image', imgBlob);
+        form.append('image', blob, 'frame.jpg');
 
         try {
-          // Hugging Face API（例: depth-anything-base）
           const resp = await fetch(
             'https://api-inference.huggingface.co/models/LiheYoung/depth-anything-base-hf',
             {
               method: 'POST',
-              headers: {
-                Authorization: 'Bearer YOUR_HUGGINGFACE_API_TOKEN'
-              },
+              headers: { Authorization: 'Bearer YOUR_HF_TOKEN' },
               body: form
             }
           );
           const result = await resp.json();
-          const depthUrl = result.depth; // API応答に応じ変動
+          const depthUrl = result.depth;
 
-          const depthImg = new Image();
-          depthImg.src = depthUrl;
-          await depthImg.decode();
+          const img = new Image();
+          img.src = depthUrl;
+          await img.decode();
 
-          depthCanvas.width = depthImg.naturalWidth;
-          depthCanvas.height = depthImg.naturalHeight;
-          ctx.drawImage(depthImg, 0, 0);
-        } catch(err) {
-          console.error(err);
-          alert('深度推定に失敗しました。APIトークンやモデル名を確認してください。');
+          depthCanvas.width = img.naturalWidth;
+          depthCanvas.height = img.naturalHeight;
+          ctx.drawImage(img, 0, 0);
+        } catch (e) {
+          console.error(e);
+          alert('深度推定に失敗しました。');
         }
-      };
-      reader.readAsDataURL(file);
+      }, 'image/jpeg');
     });
   </script>
 </body>
