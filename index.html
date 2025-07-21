@@ -89,11 +89,6 @@
       const dir = yDiff < 0.13 ? '下を向き' : yDiff > 0.19 ? '上を向き' : 'まっすぐ';
       const bent = pitch <= 40 ? (dir !== '上') : (dir === '下');
 
-      // 深度マップ取得
-      const depthMap = await estimator.estimateDepth(video, {minDepth:0, maxDepth:1});
-      const depthImg = await depthMap.toCanvasImageSource();
-      dctx.drawImage(depthImg, 0, 0);
-
       // 鼻周辺の平均深度を計測
       const ix = Math.floor(nose.x * depthCanvas.width);
       const iy = Math.floor(nose.y * depthCanvas.height);
