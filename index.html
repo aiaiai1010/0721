@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>姿勢＋深度検出 完全版</title>
+  <title>姿勢＋深度検出 完全版（停止対策付き）</title>
   <style>
     body {
       font-size: 20px; display: flex; flex-direction: column;
@@ -13,27 +13,30 @@
       display: flex; gap: 10px; margin-top: 10px;
     }
     video, canvas {
-      width: 360px; height: 640px;
-      border: 1px solid #aaa; transform: scaleX(-1);
+      width: 100vw;
+      height: calc(100vw * 4 / 3);
+      max-height: 100vh;
+      border: 1px solid #aaa;
+      transform: scaleX(-1);
+      object-fit: cover;
     }
     #output { white-space: pre-line; margin: 10px; }
     #warning { font-size: 24px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>姿勢＋深度検出 完全版</h1>
+  <h1>姿勢＋深度検出 完全版2</h1>
   <button id="startBtn">開始</button>
   <div id="output">準備中...</div>
   <div id="warning"></div>
   <div id="content">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas"></canvas>
-    <canvas id="depthCanvas"></canvas>
+    <canvas id="depthCanvas" style="display:none;"></canvas>
   </div>
 
   <!-- ライブラリ読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/depth-estimation"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -48,6 +51,7 @@
     const warn = document.getElementById('warning');
     let pitch = 0, roll = 0;
     let estimator;
+    let lastTimestamp = 0;
 
     window.addEventListener('deviceorientation', e => {
       pitch = e.beta ?? 0;
@@ -69,11 +73,15 @@
       maxNumFaces: 1,
       refineLandmarks: true,
       minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
+      minTrackingConfidence: 0.3
     });
     faceMesh.onResults(onFace);
 
     async function onFace(results) {
+      const now = Date.now();
+      if (now - lastTimestamp < 150) return;
+      lastTimestamp = now;
+
       ctx.drawImage(results.image, 0, 0);
 
       const depthMap = await estimator.estimateDepth(video, { minDepth: 0, maxDepth: 1 });
