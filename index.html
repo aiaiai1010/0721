@@ -137,8 +137,8 @@
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       video.srcObject = stream;
       await new Promise(r => video.onloadedmetadata = r);
-      canvas.width = depthCanvas.width = video.videoWidth;
-      canvas.height = depthCanvas.height = video.videoHeight;
+      canvas.width = depthCanvas.width = 640;
+      canvas.height = depthCanvas.height = 360;
 
       new Camera(video, {
         onFrame: async () => await faceMesh.send({ image: video }),
