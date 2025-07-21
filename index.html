@@ -12,7 +12,7 @@
     #content {
       display: flex; gap: 10px; margin-top: 10px;
     }
-    video, canvas  { width:360px; height:640px; border:1px solid #aaa; transform: scaleX(-1); }
+    video, canvas  { width:640px; height:360px; border:1px solid #aaa; transform: scaleX(-1); }
     #output { white-space: pre-line; margin: 10px; }
     #warning { font-size: 24px; font-weight: bold; }
   </style>
@@ -137,8 +137,8 @@
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       video.srcObject = stream;
       await new Promise(r => video.onloadedmetadata = r);
-      canvas.width = depthCanvas.width = 640;
-      canvas.height = depthCanvas.height = 360;
+      canvas.width = depthCanvas.width = 360;
+      canvas.height = depthCanvas.height = 640;
 
       new Camera(video, {
         onFrame: async () => await faceMesh.send({ image: video }),
