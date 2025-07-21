@@ -2,72 +2,72 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Depth Anything Live Demo</title>
+  <title>Depth Anything Live</title>
   <style>
-    body { font-family: Arial; padding: 20px; }
-    video, canvas { border:1px solid #ccc; }
-    #controls { display: flex; gap: 10px; margin-bottom: 10px; }
+    video, canvas {
+      width: 320px;
+      height: auto;
+      border: 1px solid #ccc;
+      margin: 10px;
+    }
   </style>
 </head>
 <body>
-  <h1>Depth Anything リアルタイムデモ</h1>
-  <div id="controls">
-    <label>フレーム間隔(ms): <input type="range" id="intervalSlider" min="500" max="5000" value="2000"> <span id="intervalVal">2000</span></label>
-    <label>出力幅(px): <input type="range" id="widthSlider" min="200" max="640" value="320"> <span id="widthVal">320</span></label>
-    <label>モデル:
-      <select id="modelSelect">
-        <option value="LiheYoung/depth-anything-base-hf">v1‑Base</option>
-        <option value="depth-anything/Depth-Anything-V2-Base-hf">v2‑Base</option>
-      </select>
-    </label>
-    <button id="startBtn">開始</button>
-    <button id="stopBtn" disabled>停止</button>
-  </div>
-  <video id="video" autoplay playsinline width="320"></video>
+  <h1>リアルタイム深度推定（Front Camera）</h1>
+  <video id="video" autoplay playsinline></video>
   <canvas id="depthCanvas"></canvas>
-  
+
   <script>
     const video = document.getElementById('video');
     const depthCanvas = document.getElementById('depthCanvas');
     const ctx = depthCanvas.getContext('2d');
-    const intervalSlider = document.getElementById('intervalSlider');
-    const intervalVal = document.getElementById('intervalVal');
-    const widthSlider = document.getElementById('widthSlider');
-    const widthVal = document.getElementById('widthVal');
-    const modelSelect = document.getElementById('modelSelect');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
 
-    let timer = null;
-
+    // カメラ映像の取得
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-      .then(s => video.srcObject = s)
-      .catch(e => alert("カメラ取得失敗:" + e));
+      .then(stream => {
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          startDepthLoop(); // 映像準備完了後に開始
+        };
+      })
+      .catch(err => {
+        console.error("カメラ取得失敗:", err);
+        alert("カメラを利用できません。");
+      });
 
-    intervalSlider.oninput = () => { intervalVal.textContent = intervalSlider.value; };
-    widthSlider.oninput = () => {
-      widthVal.textContent = widthSlider.value;
-      video.width = widthSlider.value;
-    };
+    function startDepthLoop() {
+      setInterval(captureAndEstimateDepth, 3000); // 3秒ごと
+    }
 
-    async function captureAndDepth() {
-      const w = widthSlider.value;
-      const h = video.videoHeight * (w / video.videoWidth);
+    async function captureAndEstimateDepth() {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (w === 0 || h === 0) return;
+
       depthCanvas.width = w;
       depthCanvas.height = h;
       ctx.drawImage(video, 0, 0, w, h);
+
       depthCanvas.toBlob(async blob => {
         const form = new FormData();
         form.append('image', blob, 'frame.jpg');
+
         try {
           const resp = await fetch(
-            'https://api-inference.huggingface.co/models/' + modelSelect.value,
-            { method: 'POST', headers: { Authorization: 'Bearer YOUR_HF_TOKEN' }, body: form }
+            'https://api-inference.huggingface.co/models/LiheYoung/depth-anything-base-hf',
+            {
+              method: 'POST',
+              headers: { Authorization: 'Bearer YOUR_HF_TOKEN' },
+              body: form
+            }
           );
-          const { depth } = await resp.json();
+          const result = await resp.json();
+          const depthUrl = result.depth;
+
           const img = new Image();
-          img.src = depth;
+          img.src = depthUrl;
           await img.decode();
+
           depthCanvas.width = img.naturalWidth;
           depthCanvas.height = img.naturalHeight;
           ctx.drawImage(img, 0, 0);
@@ -76,17 +76,6 @@
         }
       }, 'image/jpeg');
     }
-
-    startBtn.onclick = () => {
-      timer = setInterval(captureAndDepth, intervalSlider.value);
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-    };
-    stopBtn.onclick = () => {
-      clearInterval(timer);
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    };
   </script>
 </body>
 </html>
