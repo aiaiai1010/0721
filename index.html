@@ -66,7 +66,6 @@
     });
     faceMesh.onResults(onFace);
 
-    // 顔検出と共に深度推定・距離・傾き判定
     async function onFace(results) {
       if (!results.multiFaceLandmarks) {
         out.textContent = `傾き: ${pitch.toFixed(1)}°, ${roll.toFixed(1)}°\n顔未検出`;
@@ -74,7 +73,7 @@
         return;
       }
 
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(results.image, 0, 0);
       const lm = results.multiFaceLandmarks[0];
       const nose = lm[1], chin = lm[152];
       const yDiff = chin.y - nose.y;
@@ -82,11 +81,11 @@
       const bent = pitch <= 40 ? (dir !== '上') : (dir === '下');
 
       // 深度マップ取得
-      const depthMap = await estimator.estimateDepth(video, {minDepth:0, maxDepth:1});  // :contentReference[oaicite:1]{index=1}
+      const depthMap = await estimator.estimateDepth(video, {minDepth:0, maxDepth:1});
       const depthImg = await depthMap.toCanvasImageSource();
-      dctx.drawImage(depthImg, 0, 0, depthCanvas.width, depthCanvas.height);
+      dctx.drawImage(depthImg, 0, 0);
 
-      // 鼻周辺の平均深度取得
+      // 鼻周辺の平均深度を計測
       const ix = Math.floor(nose.x * depthCanvas.width);
       const iy = Math.floor(nose.y * depthCanvas.height);
       const imgData = dctx.getImageData(ix-10, iy-10, 20, 20).data;
@@ -103,7 +102,6 @@
       warn.style.color = (bent || avg < 50 || avg > 200) ? 'red' : 'green';
     }
 
-    // 開始処理
     document.getElementById('startBtn').onclick = async () => {
       estimator = await initDepth();
       const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
