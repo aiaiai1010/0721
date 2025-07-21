@@ -1,100 +1,105 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>首＋距離検出</title>
+  <title>首＋姿勢検出</title>
   <style>
-    body { font-size:20px; display:flex; flex-direction:column;
-           align-items:center; justify-content:center; height:100vh; margin:0; text-align:center; }
-    #content { display:flex; gap:10px; }
-    video, canvas, #depthCanvas { width:320px; height:240px; border:1px solid #aaa; }
-    #output { white-space:pre-line; margin:10px; }
-    #warning { font-size:24px; font-weight:bold; }
+    body {
+      font-size: 20px;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    #content {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    video, canvas {
+      width: 320px;
+      height: 240px;
+      border: 1px solid #aaa;
+    }
+    #output, #warning {
+      margin-top: 10px;
+    }
+    #warning {
+      font-size: 24px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <h1>姿勢＋距離検出</h1>
+  <h1>首の傾き検出</h1>
   <button id="startBtn">開始</button>
   <div id="output">準備中...</div>
   <div id="warning"></div>
   <div id="content">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas"></canvas>
-    <canvas id="depthCanvas"></canvas>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script type="module">
-    import { pipeline } from '@xenova/transformers';
-
+  <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
-    const dCanvas = document.getElementById('depthCanvas');
     const ctx = canvas.getContext('2d');
-    const dctx = dCanvas.getContext('2d');
     const out = document.getElementById('output');
     const warn = document.getElementById('warning');
-    let pitch=0, roll=0;
-    let depthEstimator;
-    let faceMesh;
+    let pitch = 0, roll = 0;
 
-    async function initDepth() {
-      depthEstimator = await pipeline('depth-estimation','onnx-community/depth-anything-v2-small');  // relative depth V2‑Small を使用 :contentReference[oaicite:1]{index=1}
+    function handleOri(e) {
+      pitch = e.beta;
+      roll = e.gamma;
     }
-
-    navigator.permissions?.query({name:'accelerometer'}); // triggers sensor
-    function handleOri(e) { pitch=e.beta; roll=e.gamma; }
     window.addEventListener('deviceorientation', handleOri);
 
-    faceMesh = new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
-    faceMesh.setOptions({maxNumFaces:1,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
-    faceMesh.onResults(onFace);
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
 
-    async function onFace(results) {
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    faceMesh.onResults((results) => {
       if (!results.multiFaceLandmarks) {
-        out.textContent=`傾き: ${pitch?.toFixed(1)}°, ${roll?.toFixed(1)}°\n顔未検出`;
-        warn.textContent="顔が検出できません"; warn.style.color='red';
+        out.textContent = `傾き: ${pitch.toFixed(1)}°, ${roll.toFixed(1)}°\n顔未検出`;
+        warn.textContent = "顔が検出できません";
+        warn.style.color = 'red';
         return;
       }
+
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
       const lm = results.multiFaceLandmarks[0];
-      ctx.drawImage(results.image,0,0,canvas.width,canvas.height);
       const nose = lm[1], chin = lm[152];
       const yDiff = chin.y - nose.y;
-      const dir = yDiff < .13 ? '下を向き' : yDiff > .19 ? '上を向き' : 'まっすぐ';
-      const bent = pitch<=40 ? (dir!=='上') : (dir==='下');
 
-      // 深度推定
-      const depthOut = await depthEstimator(video);
-      const depthImg = depthOut.depth; // Depth image data URL
-      const img = new Image();
-      img.src = depthImg;
-      img.onload = () => dctx.drawImage(img,0,0,dCanvas.width,dCanvas.height);
-      // ROIとして鼻〜顎周辺の深度平均取得
-      const ix = Math.floor(nose.x * dCanvas.width), iy = Math.floor(nose.y * dCanvas.height);
-      const fw = dCanvas.width, fh = dCanvas.height;
-      const imgData = dctx.getImageData(ix-10, iy-10,20,20).data;
-      let sum=0,c=0;
-      for (let i=0;i<imgData.length;i+=4){ sum+=imgData[i]; c++; }
-      const avg = sum/c;
-      const near = avg < 100, far = avg > 200;
+      const dir = yDiff < 0.13 ? '下を向き' : yDiff > 0.19 ? '上を向き' : 'まっすぐ';
+      const bent = pitch <= 40 ? (dir !== '上') : (dir === '下');
 
-      out.textContent =
-        `Pitch: ${pitch.toFixed(1)}° Roll: ${roll.toFixed(1)}°\n顔: ${dir}\n距離指標: ${avg.toFixed(1)}`;
-      let msg = bent ? '首が曲がっています\n' : '首は自然です\n';
-      msg += near? '近すぎます': far? '離れすぎています':'適切な距離です';
-      warn.textContent = msg;
-      warn.style.color = bent||near||far ? 'red':'green';
-    }
+      out.textContent = `Pitch: ${pitch.toFixed(1)}° Roll: ${roll.toFixed(1)}°\n顔: ${dir}`;
+      warn.textContent = bent ? '首が曲がっています' : '首は自然です';
+      warn.style.color = bent ? 'red' : 'green';
+    });
 
     async function start() {
-      await initDepth();
-      const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       video.srcObject = stream;
-      await new Promise(r=>video.onloadedmetadata=r);
-      canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-      dCanvas.width=video.videoWidth; dCanvas.height=video.videoHeight;
-      new Camera(video, {onFrame:()=>faceMesh.send({image:video}), width:640, height:480}).start();
-      document.getElementById('startBtn').style.display='none';
+      await new Promise((r) => video.onloadedmetadata = r);
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      new Camera(video, {
+        onFrame: async () => {
+          await faceMesh.send({ image: video });
+        },
+        width: 640,
+        height: 480
+      }).start();
+      document.getElementById('startBtn').style.display = 'none';
     }
 
     document.getElementById('startBtn').onclick = start;
